@@ -1,0 +1,16 @@
+resolver: lts-9.3
+packages:
+- .
+#- /src/haskell/servant-auth/servant-auth/
+#- /src/haskell/servant-auth/servant-auth-server/
+#- /src/haskell/hadruki-logger/
+
+extra-deps:
+- git: git@github.com:dvekeman/hadruki-text-extended.git
+  commit: bc88d91fe4a2b4e414befb43952f80ada6cc804b
+- git: git@github.com:dvekeman/hadruki-logger
+  commit: ba00ba6b9005f2ce9a46ff4275ec47c1eae527d0
+- servant-options-0.1.0.0
+- wai-make-assets-0.2
+- servant-auth-0.3.1.0
+- servant-auth-server-0.3.2.0

@@ -1,0 +1,18 @@
+user-edited: true
+
+stanzas:
+
+  - type: webapp
+
+    exec: ../accountservice-exe
+
+    args: [ "/var/hadruki/accountservice.yaml" ]
+
+    hosts:
+      - accountservice.hadruki.local
+      - accountservice.hadruki.com
+
+    requires-secure: true
+
+plugins:
+    postgres: true

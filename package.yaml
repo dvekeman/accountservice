@@ -1,0 +1,95 @@
+name:                accountservice
+version:             0.1.0.0
+github:              "dvekeman/accountservice"
+license:             BSD3
+author:              "Dieter Vekeman"
+maintainer:          "dieter.vekeman@tinkhaven.com"
+copyright:           "2018 Tinkhaven"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on Github at <https://github.com/dvekeman/accountservice#readme>
+
+dependencies:
+  - base >= 4.7 && < 5
+  - aeson
+  - blaze-html
+  - bytestring
+  - esqueleto
+  - exceptions
+  - fast-logger
+  - hadruki-logger
+  - http-api-data
+  - http-client
+  - http-client-tls
+  - http-types
+  - jose
+  - lucid
+  - mime-mail
+  - mime-mail-ses
+  - monad-logger
+  - mtl
+  - persistent
+  - persistent-postgresql
+  - persistent-template
+  - pwstore-fast >= 2.0 && < 3.0
+  - resource-pool
+  - servant
+  - servant-server
+  - servant-auth
+  - servant-auth-server
+  - servant-foreign >= 0.10.0 && < 1.0
+  - servant-lucid
+  - servant-options >= 0.1.0.0 && < 1.0
+  - shakespeare >= 2.0.14 && < 3.0
+  - uuid
+  - text
+  - text-extended
+  - wai
+  - wai-cors
+  - wai-make-assets
+  - warp
+  - warp-tls
+  - yaml
+
+library:
+  source-dirs: src
+
+executables:
+  accountservice-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -Wall
+    dependencies:
+    - accountservice 
+    - wai
+    - warp
+
+tests:
+  accountservice-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - accountservice 
+
+default-extensions:
+  - OverloadedStrings
+  - DeriveGeneric
+  - RecordWildCards

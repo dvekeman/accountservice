@@ -1,0 +1,9 @@
+.stack-work/
+*.cabal
+*~
+dot_stack_linux.tbz
+*.keter
+*-exe
+*.yaml.dev
+*.yaml.test
+*.yaml.prod
