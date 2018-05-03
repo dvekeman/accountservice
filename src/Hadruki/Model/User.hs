@@ -9,9 +9,14 @@
 
 module Hadruki.Model.User 
   ( findUserByUsername
+  , findUserByActivationCode
+  
   , updateUserPassword
   , updateUserVerified
+  
   , insertUser
+  
+  , deleteUserByUsername
   )
 where
 
@@ -37,7 +42,25 @@ findUserByUsername username = do
 
 -------------------------------------------------------------------------------
 
-updateUserPassword :: User -> T.Text -> SqlPersistM ()
+findUserByActivationCode :: T.Text -> SqlPersistM (Maybe User)
+findUserByActivationCode uid = do
+  -- | Select all users where their activation code is equal to <uid>
+  liftIO $ putStrLn $ "findUserByActivationCode " ++ T.unpack uid
+  users <- select $
+           from $ \u -> do
+           where_ 
+             (   u ^. UserVerificationKey ==. just (val uid)
+             &&. u ^. UserVerified        ==. val False
+             )
+           return u
+  liftIO $ putStrLn $ "Result " ++ show users
+  case users of 
+       []        -> return Nothing
+       (user:_)  -> return $ fromUserEntity <$> Just user 
+
+-------------------------------------------------------------------------------
+
+-- updateUserPassword :: User -> T.Text -> SqlPersistM ()
 updateUserPassword user password = do
   liftIO $ putStrLn $ "updateUserPassword " ++ T.unpack (userUsername user)
   let username = userUsername user
@@ -59,11 +82,20 @@ updateUserVerified user = do
 
 -------------------------------------------------------------------------------
 
-insertUser :: User -> SqlPersistM ()
+insertUser :: User -> SqlPersistM User
 insertUser user = do
   liftIO $ putStrLn $ "insertUser " ++ T.unpack (userUsername user)
-  insert_ user
+  pk <- insert user
+  getJust pk
 
+-------------------------------------------------------------------------------
+
+deleteUserByUsername :: T.Text -> SqlPersistM ()
+deleteUserByUsername username = do
+  liftIO $ putStrLn $ "deleteUser " ++ T.unpack username
+  delete $
+     from $ \u ->
+       where_ (u ^. UserUsername ==. val username)
 -------------------------------------------------------------------------------
 
 fromUserEntity :: Entity User -> User

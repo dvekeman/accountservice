@@ -77,47 +77,47 @@ verifyAccount ::
   -> JWTSettings
   -> Maybe String
   -> Maybe T.Text
-  -> Maybe T.Text
   -> HadrukiM ( Headers '[ Header "Location" T.Text ] NoContent )
-verifyAccount cs jwts mhost username verificationKey = do
+verifyAccount cs jwts mhost mverificationKey = do
   serverUrl <- serverUrl mhost
   -- 1. Find the user by username and uid
-  muser <- findUserByUsernameAndUid_ username verificationKey
+  muser <- findUserByActivationCode mverificationKey
   case muser of 
-    Just user -> 
+    Just user -> do
+      setUserVerified user
       return $ Servant.addHeader (serverUrl <> "/static/index.html#login") NoContent
     Nothing   -> 
       return $ Servant.addHeader (serverUrl <> "/static/index.html#invalid-verification") NoContent
 
-verifyUserAccount :: 
-     CookieSettings
-  -> JWTSettings
-  -> T.Text
-  -> HadrukiM (Headers '[Header "Set-Cookie" SetCookie
-                       , Header "Set-Cookie" SetCookie ] LoginResponse )
-verifyUserAccount cs jwts username = do
-  -- 1. Update the user
-  setUserVerified username
-  -- 2. Get the user email
-  email <- findUserEmail username
-  -- 3. (Re)set the cookies 
-  applyCookies cs jwts username email $ LoginResponse username email 
-  
 signupUser ::
      CookieSettings
   -> JWTSettings
   -> SignupRequest
   -> HadrukiM SignupResponse
 signupUser cs jwts (SignupRequest username email password) = do
-  serverUrl <- askServerUrl
   -- 1. Create the password
   hashedPassword <- makeUserPassword password
   -- 2. Insert the user
-  createUser username email hashedPassword
-  -- 3. Send an email (TODO: async // TODO: url)
-  sendConfirmationEmail username email $ serverUrl <> "/static/index.html#account-verified"
+  user <- createUser username email hashedPassword
+  -- 3. Send an email (TODO: async)
+  trySendConfirmationEmail username email (Model.userVerificationKey user)
   return $ SignupResponse username email
 
+trySendConfirmationEmail :: T.Text -> T.Text -> Maybe T.Text -> HadrukiM ()
+trySendConfirmationEmail username email Nothing = failedToSendEmail username email
+trySendConfirmationEmail username email (Just verificationKey) = do
+  serverUrl <- askServerUrl
+  sendConfirmationEmail username email (serverUrl <> "/account/verify-account?verification_code=" <> verificationKey)
+    `catch` (\(SomeException e) -> do 
+      logError $ show e
+      deleteUserByUsername username
+      failedToSendEmail username email)
+
+failedToSendEmail :: T.Text -> T.Text -> HadrukiM ()
+failedToSendEmail username email = 
+  throwError . failedTo $ 
+          "Create account failed for username '" <> asLazyBS username <> "' and email '" <> asLazyBS email <> "'"
+        
 changePassword ::
      CookieSettings
   -> JWTSettings
@@ -155,12 +155,10 @@ changeUserPassword username newpassword = do
 
 {-|  
 -}
-setUserVerified :: T.Text -> HadrukiM()
-setUserVerified username =
-  withUser username $ \mUser db ->
-    case mUser of 
-      Just user -> liftIO $ Model.updateUserVerified db user
-      Nothing   -> return ()
+setUserVerified :: Model.User -> HadrukiM ()
+setUserVerified user = do 
+  db <- asks hDatabase
+  liftIO $ Model.updateUserVerified db user
 
 {-| Verifies the password and throws HTTP 401 
     if the user is not found or 
@@ -184,7 +182,7 @@ makeUserPassword password =
 
 {-| Create user with username and password 
 -}
-createUser :: T.Text -> T.Text -> T.Text -> HadrukiM ()
+createUser :: T.Text -> T.Text -> T.Text -> HadrukiM Model.User
 createUser username email password = do
   db <- asks hDatabase
   uid <- UUID.toText <$> liftIO UUID.nextRandom
@@ -194,6 +192,13 @@ createUser username email password = do
         logError $ show e
         throwError . failedTo $ 
           "Create account failed for username '" <> asLazyBS username <> "' and email '" <> asLazyBS email <> "'")
+
+{-| Delete a user 
+-}
+deleteUserByUsername :: T.Text -> HadrukiM ()
+deleteUserByUsername username = do
+  db <- asks hDatabase
+  liftIO $ Model.deleteUserByUsername db username
 
 applyCookies :: CookieSettings
              -> JWTSettings
@@ -217,15 +222,11 @@ applyCookies cs jwts username email response = do
       logError (show err)
       throwError failedToGenerateJWT
 
-findUserByUsernameAndUid_ :: Maybe T.Text -> Maybe T.Text -> HadrukiM (Maybe Model.User)
-findUserByUsernameAndUid_ Nothing _ = return Nothing
-findUserByUsernameAndUid_ _ Nothing = return Nothing
-findUserByUsernameAndUid_ (Just username) (Just uid) = findUserByUsernameAndUid username uid
-
-findUserByUsernameAndUid :: T.Text -> T.Text -> HadrukiM (Maybe Model.User)
-findUserByUsernameAndUid username uid = 
-  withUser username $ \user db ->
-    return $ uidMatches uid =<< user
+findUserByActivationCode :: Maybe T.Text -> HadrukiM (Maybe Model.User)
+findUserByActivationCode Nothing    = return Nothing
+findUserByActivationCode (Just uid) = do 
+  db <- asks hDatabase
+  liftIO $ Model.findUserByActivationCode db uid
 
 uidMatches :: T.Text -> Model.User -> Maybe Model.User
 uidMatches uid user@Model.User{..} 

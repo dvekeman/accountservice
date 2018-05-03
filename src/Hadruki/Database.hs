@@ -31,10 +31,12 @@ withHandle config f = do
     let handle = Handle 
                   { hConfig = config
                   , hPool = pool
-                  , findUserByUsername = withPooledResource pool . Model.findUserByUsername
-                  , updateUserPassword = \user password -> withPooledResource pool $ Model.updateUserPassword user password
-                  , updateUserVerified = withPooledResource pool . Model.updateUserVerified
-                  , insertUser         = withPooledResource pool . Model.insertUser
+                  , findUserByUsername  = withPooledResource pool . Model.findUserByUsername
+                  , findUserByActivationCode = withPooledResource pool . Model.findUserByActivationCode
+                  , updateUserPassword  = \user password -> withPooledResource pool $ Model.updateUserPassword user password
+                  , updateUserVerified  = withPooledResource pool . Model.updateUserVerified
+                  , insertUser          = withPooledResource pool . Model.insertUser
+                  , deleteUserByUsername = withPooledResource pool . Model.deleteUserByUsername
                   }
                   
     x <- f handle

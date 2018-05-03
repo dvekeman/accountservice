@@ -33,9 +33,9 @@ type Api auths = "account" :>
                       :> Post '[JSON] SignupResponse
         :<|> "login"  :> ReqBody '[JSON] LoginRequest
                       :> Post '[JSON] (Headers '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] LoginResponse)
-        :<|> Header "Host" String :> "verify" :> QueryParam "username" Text :>
-                         QueryParam "uid" Text :>
-                         Verb 'GET 302 '[HTML] ( Headers 
+        :<|> Header "Host" String :> "verify-account" 
+                      :> QueryParam "verification_code" Text 
+                      :> Verb 'GET 302 '[HTML] ( Headers 
                           '[ Header "Location" Text ] NoContent )
         :<|> Auth auths LoginToken :> "change-password" 
                       :> ReqBody '[JSON] ChangePasswordRequest
