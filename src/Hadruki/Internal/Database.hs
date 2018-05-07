@@ -14,6 +14,7 @@ import           Database.Persist.Postgresql
 
 import           Hadruki.DatabaseHandle
 import qualified Hadruki.Model.User as Model
+import qualified Hadruki.Model.App  as Model
 
 withHandle :: Config -> (Handle -> IO a) -> IO a
 withHandle config f = do
@@ -22,12 +23,15 @@ withHandle config f = do
     let handle = Handle 
                   { hConfig = config
                   , hPool = pool
+                  -- User
                   , findUserByUsername  = withPooledResource pool . Model.findUserByUsername
-                  , findUserIdByActivationCode = \appName uid -> withPooledResource pool $ Model.findUserIdByActivationCode appName uid
+                  , findUserIdByActivationCode = \appIdentifier uid -> withPooledResource pool $ Model.findUserIdByActivationCode appIdentifier uid
                   , updateUserPassword  = \user password -> withPooledResource pool $ Model.updateUserPassword user password
                   , updateUserVerified  = \user appVerificationKey -> withPooledResource pool $ Model.updateUserVerified user appVerificationKey
-                  , insertUser          = \appName user uid -> withPooledResource pool $ Model.insertUser appName user uid
+                  , insertUser          = \appIdentifier user uid -> withPooledResource pool $ Model.insertUser appIdentifier user uid
                   , deleteUserByUsername = withPooledResource pool . Model.deleteUserByUsername
+                  -- App
+                  , findAppByIdentifier = withPooledResource pool . Model.findAppByIdentifier
                   }
                   
     x <- f handle

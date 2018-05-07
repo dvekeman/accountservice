@@ -44,10 +44,14 @@ instance Aeson.FromJSON Config where
 data Handle = Handle
     { hConfig :: Config
     , hPool   :: Pool.Pool SqlBackend
-    , findUserByUsername :: T.Text -> IO (Maybe User)
-    , findUserIdByActivationCode :: T.Text -> T.Text -> IO (Maybe UserId)
+    -- User
+    , findUserByUsername :: T.Text -> IO ( Maybe User )
+    , findUserIdByActivationCode :: T.Text -> T.Text -> IO ( Maybe UserId )
     , updateUserPassword :: User -> T.Text -> IO () 
     , updateUserVerified :: UserId -> T.Text -> IO () 
     , insertUser         :: T.Text -> User -> T.Text -> IO ( User, AppVerification )
     , deleteUserByUsername         :: T.Text -> IO ()
+    -- App
+    , findAppByIdentifier :: T.Text -> IO ( Maybe App )
+    -- 
     }

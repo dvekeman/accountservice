@@ -36,15 +36,15 @@ findUserByUsername username = do
 -------------------------------------------------------------------------------
 
 findUserIdByActivationCode :: T.Text -> T.Text -> SqlPersistM (Maybe UserId)
-findUserIdByActivationCode appName uid = do
+findUserIdByActivationCode appIdentifier uid = do
   results <- 
     select $
     from $ \(av `InnerJoin` app) -> do
-    on (av ^. AppVerificationApp ==. app ^. AppId)
-    where_ (   app ^. AppName ==. val appName
-           &&. av  ^. AppVerificationVerificationKey ==. val uid
-           )
-    return (av, app)
+      on (av ^. AppVerificationApp ==. app ^. AppId)
+      where_ (   app ^. AppIdentifier ==. val appIdentifier
+             &&. av  ^. AppVerificationVerificationKey ==. val uid
+             )
+      return (av, app)
   case results of 
        []        -> return Nothing
        ( ( appVerification, app ):_ )  ->
@@ -74,10 +74,10 @@ updateUserVerified userId appVerificationKey = do
 -------------------------------------------------------------------------------
 
 insertUser :: T.Text -> User -> T.Text -> SqlPersistM ( User, AppVerification )
-insertUser appName user uid = do
+insertUser appIdentifier user uid = do
   liftIO $ putStrLn $ "insertUser " ++ T.unpack (userUsername user)
   userKey   <- insert user
-  appKey    <- fromJust <$> App.findAppKeyByName appName
+  appKey    <- fromJust <$> App.findAppKeyByIdentifier appIdentifier
   appVerificationKey <- insert $ AppVerification userKey appKey uid False
   (,) <$> getJust userKey <*> getJust appVerificationKey
 

@@ -30,8 +30,14 @@ User json
     deriving Eq Show Typeable
 
 App json
-    name     T.Text
-    confirmationCallback T.Text
+    identifier T.Text
+    name       T.Text
+    scheme     T.Text
+    host       T.Text
+    port       Int
+    confirmationSuccessCallback T.Text
+    confirmationFailCallback T.Text
+    UniqueAppIdentifier
     deriving Eq Show Typeable
 
 AppVerification json

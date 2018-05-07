@@ -4,17 +4,16 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
 module Hadruki.Model.App 
-  ( findAppByName
-  , findAppKeyByName
+  ( findAppByIdentifier
+  , findAppKeyByIdentifier
   
   , updateApp
   
   , insertApp
   
-  , deleteAppByName
+  , deleteAppByIdentifier
   )
 where
 
@@ -25,22 +24,22 @@ import           Database.Esqueleto
 import           Hadruki.Model.Model
 -------------------------------------------------------------------------------
 
-findAppByName :: T.Text -> SqlPersistM (Maybe App)
-findAppByName name = do 
-  app <- findAppByName' name
+findAppByIdentifier :: T.Text -> SqlPersistM (Maybe App)
+findAppByIdentifier identifier = do 
+  app <- findAppByIdentifier' identifier
   return $ fromAppEntity <$> app
  
-findAppKeyByName :: T.Text -> SqlPersistM (Maybe (Key App))
-findAppKeyByName name = do 
-  app <- findAppByName' name
+findAppKeyByIdentifier :: T.Text -> SqlPersistM (Maybe (Key App))
+findAppKeyByIdentifier identifier = do 
+  app <- findAppByIdentifier' identifier
   return $ fromAppEntity' <$> app
 
-findAppByName' :: T.Text -> SqlPersistM (Maybe (Entity App))
-findAppByName' name = do
+findAppByIdentifier' :: T.Text -> SqlPersistM (Maybe (Entity App))
+findAppByIdentifier' identifier = do
   apps <- select $
-          from $ \a -> do
-            where_ (a ^. AppName ==. val name)
-            return a
+            from $ \a -> do
+              where_ (a ^. AppIdentifier ==. val identifier)
+              return a
   case apps of 
        []        -> return Nothing
        (app:_)   -> return $ Just app 
@@ -50,23 +49,36 @@ findAppByName' name = do
 updateApp :: App -> SqlPersistM ()
 updateApp App{..} =
   update $ \a -> do
-    set a [ AppConfirmationCallback =. val appConfirmationCallback ]
-    where_ ( a ^. AppName ==. val appName )
+    set a [ AppScheme                      =. val appScheme
+          , AppHost                        =. val appHost
+          , AppPort                        =. val appPort
+          , AppConfirmationSuccessCallback =. val appConfirmationSuccessCallback 
+          , AppConfirmationFailCallback    =. val appConfirmationFailCallback
+          ]
+          
+    where_ ( a ^. AppIdentifier ==. val appIdentifier )
 
 -------------------------------------------------------------------------------
 
-insertApp :: T.Text -> T.Text -> SqlPersistM App
-insertApp name confirmationCallback = do
-  pk <- insert $ App name confirmationCallback
+insertApp :: T.Text -- ^ Identifier 
+          -> T.Text -- ^ Name
+          -> T.Text -- ^ Scheme
+          -> T.Text -- ^ Host
+          -> Int    -- ^ Port 
+          -> T.Text -- ^ Confirmation success callback
+          -> T.Text -- ^ Confirmation fail callback
+          -> SqlPersistM App
+insertApp identifier name scheme host port confirmationSuccessCallback confirmationFailCallback = do
+  pk <- insert $ App identifier name scheme host port confirmationSuccessCallback confirmationFailCallback
   getJust pk
 
 -------------------------------------------------------------------------------
 
-deleteAppByName :: T.Text -> SqlPersistM ()
-deleteAppByName name =
+deleteAppByIdentifier :: T.Text -> SqlPersistM ()
+deleteAppByIdentifier identifier =
   delete $
-     from $ \a ->
-       where_ (a ^. AppName ==. val name)
+    from $ \a ->
+    where_ (a ^. AppIdentifier ==. val identifier)
 -------------------------------------------------------------------------------
 
 fromAppEntity :: Entity App -> App

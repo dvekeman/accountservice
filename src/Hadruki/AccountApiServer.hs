@@ -79,16 +79,26 @@ verifyAccount ::
   -> Maybe T.Text
   -> Maybe T.Text
   -> HadrukiM ( Headers '[ Header "Location" T.Text ] NoContent )
-verifyAccount cs jwts mhost mapp mverificationKey = do
-  serverUrl <- serverUrl mhost
+verifyAccount cs jwts mHost mAppIdentifier mVerificationKey = do
   -- 1. Find the user by username and uid
-  muserId <- findUserIdByActivationCode mapp mverificationKey
-  case ( muserId, mverificationKey ) of 
+  mUserId <- findUserIdByActivationCode mAppIdentifier mVerificationKey
+
+  -- 2. Get the success / fail confirmation urls from the App
+  ( confirmationSuccessUrl , confirmationFailUrl ) <- confirmationUrls mAppIdentifier
+  case ( mUserId, mVerificationKey ) of 
     ( Just userId, Just verificationKey ) -> do
       setUserVerified userId verificationKey
-      return $ Servant.addHeader (serverUrl <> "/static/index.html#login") NoContent
+      return $ Servant.addHeader confirmationSuccessUrl NoContent
     _ -> 
-      return $ Servant.addHeader (serverUrl <> "/static/index.html#invalid-verification") NoContent
+      return $ Servant.addHeader confirmationFailUrl    NoContent
+
+confirmationUrls :: Maybe T.Text -> HadrukiM ( T.Text, T.Text )
+confirmationUrls Nothing           = throwError . failedTo $ "Invalid confirmation URL"
+confirmationUrls ( Just identifier ) = do
+  mApp <- findAppByIdentifier identifier
+  case mApp of 
+    Nothing  -> confirmationUrls Nothing
+    Just app -> return $ appConfirmationUrls app 
 
 signupUser ::
      CookieSettings
@@ -105,9 +115,9 @@ signupUser cs jwts (SignupRequest username email password app) = do
   return $ SignupResponse username email
 
 trySendConfirmationEmail :: T.Text -> T.Text -> T.Text -> T.Text -> HadrukiM ()
-trySendConfirmationEmail username email app verificationKey = do
+trySendConfirmationEmail username email appIdentifier verificationKey = do
   serverUrl <- askServerUrl
-  sendConfirmationEmail username email (serverUrl <> "/account/verify-account?app=" <> app <> "&verification_code=" <> verificationKey)
+  sendConfirmationEmail username email (serverUrl <> "/account/verify-account?app=" <> appIdentifier <> "&verification_code=" <> verificationKey)
     `catch` (\(SomeException e) -> do 
       logError $ show e
       deleteUserByUsername username
@@ -229,6 +239,11 @@ findUserIdByActivationCode (Just app) (Just uid) = do
   db <- asks hDatabase
   liftIO $ Model.findUserIdByActivationCode db app uid
 
+findAppByIdentifier :: T.Text -> HadrukiM ( Maybe Model.App )
+findAppByIdentifier appIdentifier = do
+  db <- asks hDatabase
+  liftIO $ Model.findAppByIdentifier db appIdentifier
+
 withUser :: T.Text -> (Maybe Model.User -> Database.Handle -> HadrukiM a) -> HadrukiM a
 withUser username f = do
   db <- asks hDatabase
@@ -240,3 +255,11 @@ encodeToken = LT.toStrict . LEnc8.decodeUtf8
 
 asLazyBS :: T.Text -> LBS.ByteString
 asLazyBS = LEnc8.encodeUtf8 . LT.fromStrict
+
+appConfirmationUrls :: Model.App         -- ^ 
+                   -> ( T.Text, T.Text ) -- ^ ( Success URL, Fail URL )
+appConfirmationUrls Model.App{..} = 
+  ( baseUrl <> appConfirmationSuccessCallback 
+  , baseUrl <> appConfirmationFailCallback 
+  )
+  where baseUrl = appScheme <> "://" <> appHost <> ":" <> T.showInt appPort
