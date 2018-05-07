@@ -8,23 +8,16 @@
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
 module Hadruki.Model.User 
-  ( findUserByUsername
-  , findUserByActivationCode
-  
-  , updateUserPassword
-  , updateUserVerified
-  
-  , insertUser
-  
-  , deleteUserByUsername
-  )
 where
 
 -------------------------------------------------------------------------------
+import           Control.Monad               ( liftM )
 import           Control.Monad.IO.Class      ( liftIO )
 import qualified Data.Text                   as T
+import           Data.Maybe
 import           Database.Esqueleto
 import           Hadruki.Model.Model
+import qualified Hadruki.Model.App           as App
 -------------------------------------------------------------------------------
 
 findUserByUsername :: T.Text -> SqlPersistM (Maybe User)
@@ -32,9 +25,9 @@ findUserByUsername username = do
   -- | Select all users where their username is equal to <username>
   liftIO $ putStrLn $ "findUserByUsername " ++ T.unpack username
   users <- select $
-           from $ \u -> do
-           where_ (u ^. UserUsername ==. val username)
-           return u
+             from $ \u -> do
+               where_ (u ^. UserUsername ==. val username)
+               return u
   liftIO $ putStrLn $ "Result " ++ show users
   case users of 
        []        -> return Nothing
@@ -42,21 +35,21 @@ findUserByUsername username = do
 
 -------------------------------------------------------------------------------
 
-findUserByActivationCode :: T.Text -> SqlPersistM (Maybe User)
-findUserByActivationCode uid = do
-  -- | Select all users where their activation code is equal to <uid>
-  liftIO $ putStrLn $ "findUserByActivationCode " ++ T.unpack uid
-  users <- select $
-           from $ \u -> do
-           where_ 
-             (   u ^. UserVerificationKey ==. just (val uid)
-             &&. u ^. UserVerified        ==. val False
-             )
-           return u
-  liftIO $ putStrLn $ "Result " ++ show users
-  case users of 
+findUserIdByActivationCode :: T.Text -> T.Text -> SqlPersistM (Maybe UserId)
+findUserIdByActivationCode appName uid = do
+  results <- 
+    select $
+    from $ \(av `InnerJoin` app) -> do
+    on (av ^. AppVerificationApp ==. app ^. AppId)
+    where_ (   app ^. AppName ==. val appName
+           &&. av  ^. AppVerificationVerificationKey ==. val uid
+           )
+    return (av, app)
+  case results of 
        []        -> return Nothing
-       (user:_)  -> return $ fromUserEntity <$> Just user 
+       ( ( appVerification, app ):_ )  ->
+         -- Return the UserId from the AppVerification entity 
+         return $ Just . appVerificationUser $ fromAppVerificationEntity appVerification  
 
 -------------------------------------------------------------------------------
 
@@ -70,23 +63,23 @@ updateUserPassword user password = do
 
 -------------------------------------------------------------------------------
 
-updateUserVerified :: User -> SqlPersistM ()
-updateUserVerified user = do
-  liftIO $ putStrLn $ "updateUserVerified " ++ T.unpack (userUsername user)
-  let username = userUsername user
-  update $ \u -> do
-    set u [ UserVerificationKey =. val Nothing
-          , UserVerified        =. val True 
-          ]
-    where_ ( u ^. UserUsername ==. val username )
+updateUserVerified :: UserId -> T.Text -> SqlPersistM ()
+updateUserVerified userId appVerificationKey = do
+  liftIO $ putStrLn $ "updateUserVerified " ++ show userId
+  update $ \av -> do
+    set av [ AppVerificationVerified        =. val True 
+           ]
+    where_ ( av ^. AppVerificationUser ==. val userId )
 
 -------------------------------------------------------------------------------
 
-insertUser :: User -> SqlPersistM User
-insertUser user = do
+insertUser :: T.Text -> User -> T.Text -> SqlPersistM ( User, AppVerification )
+insertUser appName user uid = do
   liftIO $ putStrLn $ "insertUser " ++ T.unpack (userUsername user)
-  pk <- insert user
-  getJust pk
+  userKey   <- insert user
+  appKey    <- fromJust <$> App.findAppKeyByName appName
+  appVerificationKey <- insert $ AppVerification userKey appKey uid False
+  (,) <$> getJust userKey <*> getJust appVerificationKey
 
 -------------------------------------------------------------------------------
 
@@ -100,3 +93,6 @@ deleteUserByUsername username = do
 
 fromUserEntity :: Entity User -> User
 fromUserEntity (Entity _ user) = user
+
+fromAppVerificationEntity :: Entity AppVerification -> AppVerification
+fromAppVerificationEntity (Entity _ appVerification) = appVerification

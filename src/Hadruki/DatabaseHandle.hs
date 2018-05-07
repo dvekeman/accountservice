@@ -45,9 +45,9 @@ data Handle = Handle
     { hConfig :: Config
     , hPool   :: Pool.Pool SqlBackend
     , findUserByUsername :: T.Text -> IO (Maybe User)
-    , findUserByActivationCode :: T.Text -> IO (Maybe User)
+    , findUserIdByActivationCode :: T.Text -> T.Text -> IO (Maybe UserId)
     , updateUserPassword :: User -> T.Text -> IO () 
-    , updateUserVerified :: User -> IO () 
-    , insertUser         :: User -> IO User
+    , updateUserVerified :: UserId -> T.Text -> IO () 
+    , insertUser         :: T.Text -> User -> T.Text -> IO ( User, AppVerification )
     , deleteUserByUsername         :: T.Text -> IO ()
     }

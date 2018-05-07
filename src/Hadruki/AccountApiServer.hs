@@ -77,16 +77,17 @@ verifyAccount ::
   -> JWTSettings
   -> Maybe String
   -> Maybe T.Text
+  -> Maybe T.Text
   -> HadrukiM ( Headers '[ Header "Location" T.Text ] NoContent )
-verifyAccount cs jwts mhost mverificationKey = do
+verifyAccount cs jwts mhost mapp mverificationKey = do
   serverUrl <- serverUrl mhost
   -- 1. Find the user by username and uid
-  muser <- findUserByActivationCode mverificationKey
-  case muser of 
-    Just user -> do
-      setUserVerified user
+  muserId <- findUserIdByActivationCode mapp mverificationKey
+  case ( muserId, mverificationKey ) of 
+    ( Just userId, Just verificationKey ) -> do
+      setUserVerified userId verificationKey
       return $ Servant.addHeader (serverUrl <> "/static/index.html#login") NoContent
-    Nothing   -> 
+    _ -> 
       return $ Servant.addHeader (serverUrl <> "/static/index.html#invalid-verification") NoContent
 
 signupUser ::
@@ -94,20 +95,19 @@ signupUser ::
   -> JWTSettings
   -> SignupRequest
   -> HadrukiM SignupResponse
-signupUser cs jwts (SignupRequest username email password) = do
+signupUser cs jwts (SignupRequest username email password app) = do
   -- 1. Create the password
   hashedPassword <- makeUserPassword password
   -- 2. Insert the user
-  user <- createUser username email hashedPassword
+  ( user, appVerification ) <- createUser app username email hashedPassword
   -- 3. Send an email (TODO: async)
-  trySendConfirmationEmail username email (Model.userVerificationKey user)
+  trySendConfirmationEmail username email app (Model.appVerificationVerificationKey appVerification)
   return $ SignupResponse username email
 
-trySendConfirmationEmail :: T.Text -> T.Text -> Maybe T.Text -> HadrukiM ()
-trySendConfirmationEmail username email Nothing = failedToSendEmail username email
-trySendConfirmationEmail username email (Just verificationKey) = do
+trySendConfirmationEmail :: T.Text -> T.Text -> T.Text -> T.Text -> HadrukiM ()
+trySendConfirmationEmail username email app verificationKey = do
   serverUrl <- askServerUrl
-  sendConfirmationEmail username email (serverUrl <> "/account/verify-account?verification_code=" <> verificationKey)
+  sendConfirmationEmail username email (serverUrl <> "/account/verify-account?app=" <> app <> "&verification_code=" <> verificationKey)
     `catch` (\(SomeException e) -> do 
       logError $ show e
       deleteUserByUsername username
@@ -155,10 +155,10 @@ changeUserPassword username newpassword = do
 
 {-|  
 -}
-setUserVerified :: Model.User -> HadrukiM ()
-setUserVerified user = do 
+setUserVerified :: Model.UserId -> T.Text -> HadrukiM ()
+setUserVerified userId verificationKey = do 
   db <- asks hDatabase
-  liftIO $ Model.updateUserVerified db user
+  liftIO $ Model.updateUserVerified db userId verificationKey
 
 {-| Verifies the password and throws HTTP 401 
     if the user is not found or 
@@ -182,12 +182,12 @@ makeUserPassword password =
 
 {-| Create user with username and password 
 -}
-createUser :: T.Text -> T.Text -> T.Text -> HadrukiM Model.User
-createUser username email password = do
+createUser :: T.Text -> T.Text -> T.Text -> T.Text -> HadrukiM ( Model.User, Model.AppVerification )
+createUser app username email password = do
   db <- asks hDatabase
   uid <- UUID.toText <$> liftIO UUID.nextRandom
   liftIO 
-    (Model.insertUser db (Model.User username email password (Just uid) False))
+    (Model.insertUser db app (Model.User username email password) uid)
       `catch` (\(SomeException e) -> do 
         logError $ show e
         throwError . failedTo $ 
@@ -222,16 +222,12 @@ applyCookies cs jwts username email response = do
       logError (show err)
       throwError failedToGenerateJWT
 
-findUserByActivationCode :: Maybe T.Text -> HadrukiM (Maybe Model.User)
-findUserByActivationCode Nothing    = return Nothing
-findUserByActivationCode (Just uid) = do 
+findUserIdByActivationCode :: Maybe T.Text -> Maybe T.Text -> HadrukiM (Maybe Model.UserId)
+findUserIdByActivationCode Nothing _  = return Nothing
+findUserIdByActivationCode _ Nothing  = return Nothing
+findUserIdByActivationCode (Just app) (Just uid) = do 
   db <- asks hDatabase
-  liftIO $ Model.findUserByActivationCode db uid
-
-uidMatches :: T.Text -> Model.User -> Maybe Model.User
-uidMatches uid user@Model.User{..} 
-  | userVerificationKey == Just uid = Just user
-  | otherwise                       = Nothing 
+  liftIO $ Model.findUserIdByActivationCode db app uid
 
 withUser :: T.Text -> (Maybe Model.User -> Database.Handle -> HadrukiM a) -> HadrukiM a
 withUser username f = do

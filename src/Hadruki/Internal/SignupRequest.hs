@@ -7,6 +7,7 @@ import           GHC.Generics
 data SignupRequest = SignupRequest { username :: T.Text
                                    , email    :: T.Text
                                    , password :: T.Text
+                                   , app      :: T.Text
                                    }
     deriving (Show, Eq, Generic)
 

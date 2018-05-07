@@ -25,11 +25,20 @@ User json
     username  T.Text
     email     T.Text
     password  T.Text
-    verificationKey    T.Text Maybe -- Used for resetting passwords
-    verified Bool
-    deriving Eq Show
     UniqueUserEmail email
     UniqueUserUsername username
-    deriving Typeable
+    deriving Eq Show Typeable
+
+App json
+    name     T.Text
+    confirmationCallback T.Text
+    deriving Eq Show Typeable
+
+AppVerification json
+    user     UserId
+    app      AppId
+    verificationKey    T.Text -- Used for resetting passwords
+    verified           Bool   -- Used for resetting passwords
+    deriving Eq Show Typeable
 
 |]

@@ -34,6 +34,7 @@ type Api auths = "account" :>
         :<|> "login"  :> ReqBody '[JSON] LoginRequest
                       :> Post '[JSON] (Headers '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] LoginResponse)
         :<|> Header "Host" String :> "verify-account" 
+                      :> QueryParam "app" Text 
                       :> QueryParam "verification_code" Text 
                       :> Verb 'GET 302 '[HTML] ( Headers 
                           '[ Header "Location" Text ] NoContent )
