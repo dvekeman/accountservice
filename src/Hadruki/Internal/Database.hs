@@ -23,7 +23,7 @@ withHandle config f = do
     let handle = Handle 
                   { hConfig = config
                   , hPool = pool
-                  -- User
+                  -- UserAccount
                   , findUserByUsername  = withPooledResource pool . Model.findUserByUsername
                   , findUserIdByActivationCode = \appIdentifier uid -> withPooledResource pool $ Model.findUserIdByActivationCode appIdentifier uid
                   , updateUserPassword  = \user password -> withPooledResource pool $ Model.updateUserPassword user password

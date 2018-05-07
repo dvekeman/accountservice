@@ -148,7 +148,7 @@ findUserEmail :: T.Text -> HadrukiM T.Text
 findUserEmail username =
   withUser username $ \mUser db ->
     case mUser of 
-      Just user -> return $ Model.userEmail user
+      Just user -> return $ Model.userAccountEmail user
       -- TODO: throw error?
       Nothing   -> return ""
 
@@ -165,7 +165,7 @@ changeUserPassword username newpassword = do
 
 {-|  
 -}
-setUserVerified :: Model.UserId -> T.Text -> HadrukiM ()
+setUserVerified :: Model.UserAccountId -> T.Text -> HadrukiM ()
 setUserVerified userId verificationKey = do 
   db <- asks hDatabase
   liftIO $ Model.updateUserVerified db userId verificationKey
@@ -182,7 +182,7 @@ verifyUserPassword username password =
       _         -> throwError unauthorized
   
   where doVerifyPassword password user = 
-          verifyPassword (Enc8.encodeUtf8 password) (Enc8.encodeUtf8 $ Model.userPassword user)
+          verifyPassword (Enc8.encodeUtf8 password) (Enc8.encodeUtf8 $ Model.userAccountPassword user)
 
 {-| Generate the user password
 -}
@@ -192,12 +192,12 @@ makeUserPassword password =
 
 {-| Create user with username and password 
 -}
-createUser :: T.Text -> T.Text -> T.Text -> T.Text -> HadrukiM ( Model.User, Model.AppVerification )
+createUser :: T.Text -> T.Text -> T.Text -> T.Text -> HadrukiM ( Model.UserAccount, Model.AppVerification )
 createUser app username email password = do
   db <- asks hDatabase
   uid <- UUID.toText <$> liftIO UUID.nextRandom
   liftIO 
-    (Model.insertUser db app (Model.User username email password) uid)
+    (Model.insertUser db app (Model.UserAccount username email password) uid)
       `catch` (\(SomeException e) -> do 
         logError $ show e
         throwError . failedTo $ 
@@ -232,7 +232,7 @@ applyCookies cs jwts username email response = do
       logError (show err)
       throwError failedToGenerateJWT
 
-findUserIdByActivationCode :: Maybe T.Text -> Maybe T.Text -> HadrukiM (Maybe Model.UserId)
+findUserIdByActivationCode :: Maybe T.Text -> Maybe T.Text -> HadrukiM (Maybe Model.UserAccountId)
 findUserIdByActivationCode Nothing _  = return Nothing
 findUserIdByActivationCode _ Nothing  = return Nothing
 findUserIdByActivationCode (Just app) (Just uid) = do 
@@ -244,7 +244,7 @@ findAppByIdentifier appIdentifier = do
   db <- asks hDatabase
   liftIO $ Model.findAppByIdentifier db appIdentifier
 
-withUser :: T.Text -> (Maybe Model.User -> Database.Handle -> HadrukiM a) -> HadrukiM a
+withUser :: T.Text -> (Maybe Model.UserAccount -> Database.Handle -> HadrukiM a) -> HadrukiM a
 withUser username f = do
   db <- asks hDatabase
   user <- liftIO $ Model.findUserByUsername db username

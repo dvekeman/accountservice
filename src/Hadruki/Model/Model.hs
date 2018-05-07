@@ -21,12 +21,12 @@ share [ mkPersist sqlSettings
       , mkMigrate "migrateAll"
       ] [persistLowerCase|
 
-User json
+UserAccount json
     username  T.Text
     email     T.Text
     password  T.Text
-    UniqueUserEmail email
-    UniqueUserUsername username
+    UniqueUserAccountEmail email
+    UniqueUserAccountUsername username
     deriving Eq Show Typeable
 
 App json
@@ -41,7 +41,7 @@ App json
     deriving Eq Show Typeable
 
 AppVerification json
-    user     UserId
+    user     UserAccountId
     app      AppId
     verificationKey    T.Text -- Used for resetting passwords
     verified           Bool   -- Used for resetting passwords
